@@ -27,26 +27,6 @@ impl<C: Comments> MarkExpression<C> {
 
 
 impl<C: Comments> VisitMut for MarkExpression<C> {
-    fn visit_mut_call_expr(&mut self, call_expr: &mut CallExpr) {
-        call_expr.visit_mut_children_with(self);
-        // 检查是否是动态 import 语句
-        if let Callee::Import(_) = &call_expr.callee {
-            if let Some(ExprOrSpread { expr, .. }) = call_expr.args.get_mut(0) {
-                if let Expr::Lit(Lit::Str(Str { span, .. })) = &mut **expr {
-                    // 创建注释
-                    let comment = Comment {
-                        span: DUMMY_SP,
-                        kind: CommentKind::Block,
-                        text: " webpackChunkName: 0-bundle ".into(),
-                    };
-
-                    // 添加注释到字符串字面量
-                    self.comments.add_leading(span.lo, comment);
-                }
-            }
-        }
-        
-    }
     fn visit_mut_var_declarator(&mut self, e: &mut VarDeclarator) {
         
         e.visit_mut_children_with(self);
@@ -68,7 +48,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
         {
             if let Expr::Ident(ident) = &**callee {
                 // 如果发现是此函数，要给
-                if ident.sym == *"btbAsyncImport" {
+                if ident.sym == *"s1sAsyncImport" {
                     should_wrap = Some(true)
                 }   
             }
