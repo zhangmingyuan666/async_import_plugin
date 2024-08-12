@@ -1,4 +1,4 @@
-use swc_common::plugin::metadata;
+use swc_common::{plugin::metadata, SyntaxContext};
 use swc_core::ecma::{
     ast::*,
     transforms::testing::test_inline,
@@ -14,6 +14,8 @@ mod shared;
 pub use crate::shared::structs::MarkExpression;
 
 use swc_ecma_visit::VisitMutWith;
+use swc_core::ecma::atoms::JsWord;
+use swc_ecma_utils::{quote_ident};
 
 impl<C: Comments> MarkExpression<C> {
     pub fn new(comments: C) -> Self {
@@ -26,9 +28,7 @@ impl<C: Comments> MarkExpression<C> {
 
 impl<C: Comments> VisitMut for MarkExpression<C> {
     fn visit_mut_call_expr(&mut self, call_expr: &mut CallExpr) {
-        /* 
         call_expr.visit_mut_children_with(self);
-
         // 检查是否是动态 import 语句
         if let Callee::Import(_) = &call_expr.callee {
             if let Some(ExprOrSpread { expr, .. }) = call_expr.args.get_mut(0) {
@@ -45,10 +45,10 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                 }
             }
         }
-        */
+        
     }
     fn visit_mut_var_declarator(&mut self, e: &mut VarDeclarator) {
-        /* 
+        
         e.visit_mut_children_with(self);
 
         print!("start{:?},end:{:?}", e.span.lo, e.span.hi);
@@ -96,6 +96,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                 println!("------------000000000{:?}", origin_span.hi);
 
                 *init = Box::new(Expr::Arrow(ArrowExpr {
+                    ctxt: SyntaxContext::empty(),
                     span: origin_span,
                     params: vec![],
                     is_async: false,
@@ -103,24 +104,28 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                     type_params: None,
                     return_type: None,
                     body: Box::new(BlockStmtOrExpr::BlockStmt(BlockStmt {
+                        ctxt: SyntaxContext::empty(),
                         span: origin_span,
                         stmts: vec![Stmt::Return(ReturnStmt {
                             span: origin_span,
                             arg: Some(Box::new(Expr::Call(CallExpr
                                 {
+                                    ctxt: SyntaxContext::empty(),
                                     span: origin_span,
                                     type_args: None,
                                     args: vec![ExprOrSpread {
                                         spread: None,
                                         expr: Box::new(Expr::Arrow(ArrowExpr {
+                                            ctxt: SyntaxContext::empty(),
                                             span: origin_span,                                           
                                             is_async: false,
                                             is_generator: false,
                                             type_params: None,
                                             return_type: None,
-                                            body: Box::new(Ident::new(JsWord::from("res"), origin_span, ).into()),
+                                            body: Box::new(Ident::new(JsWord::from("res"), origin_span, SyntaxContext::empty()).into()),
                                             params: vec![Pat::Ident(BindingIdent {
                                                 id: Ident {
+                                                    ctxt: SyntaxContext::empty(),
                                                     span: origin_span,
                                                     sym: JsWord::from("res"),
                                                     optional: false
@@ -132,6 +137,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                     callee: Callee::Expr(Box::new(Expr::Member(MemberExpr {
                                         span: origin_span,
                                         obj: Box::new(Expr::Call(CallExpr {
+                                            ctxt: SyntaxContext::empty(),
                                             type_args: None,
                                             span: origin_span,
                                             callee: Callee::Import(Import {
@@ -243,7 +249,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                 println!("False");
             }
         }
-        */
+    
     }
 }
 
