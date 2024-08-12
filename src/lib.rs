@@ -9,11 +9,12 @@ use swc_common::{
     comments::{Comment, CommentKind, Comments}
 };
 use swc_core::plugin::{plugin_transform, proxies::{TransformPluginProgramMetadata, PluginCommentsProxy}};
+
+mod shared;
+pub use crate::shared::structs::MarkExpression;
+
 use swc_ecma_visit::VisitMutWith;
 
-pub struct MarkExpression<C: Comments> {
-    comments: C,
-}
 impl<C: Comments> MarkExpression<C> {
     pub fn new(comments: C) -> Self {
         return Self {

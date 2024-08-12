@@ -5,7 +5,6 @@ use swc_core::ecma::{
     visit::as_folder,
 };
 use swc_ecma_transforms_testing::{test_fixture, FixtureTestConfig};
-
 use s1s_async_import_plugin::MarkExpression;
 
 #[testing::fixture("tests/fixture/**/input.*")]
