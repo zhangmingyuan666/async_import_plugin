@@ -76,7 +76,6 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                 println!("------------000000000{:?}", origin_span.hi);
 
                 *init = Box::new(Expr::Arrow(ArrowExpr {
-                    ctxt: SyntaxContext::empty(),
                     span: origin_span,
                     params: vec![],
                     is_async: false,
@@ -84,28 +83,24 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                     type_params: None,
                     return_type: None,
                     body: Box::new(BlockStmtOrExpr::BlockStmt(BlockStmt {
-                        ctxt: SyntaxContext::empty(),
                         span: origin_span,
                         stmts: vec![Stmt::Return(ReturnStmt {
                             span: origin_span,
                             arg: Some(Box::new(Expr::Call(CallExpr
                                 {
-                                    ctxt: SyntaxContext::empty(),
                                     span: origin_span,
                                     type_args: None,
                                     args: vec![ExprOrSpread {
                                         spread: None,
                                         expr: Box::new(Expr::Arrow(ArrowExpr {
-                                            ctxt: SyntaxContext::empty(),
                                             span: origin_span,                                           
                                             is_async: false,
                                             is_generator: false,
                                             type_params: None,
                                             return_type: None,
-                                            body: Box::new(Ident::new(JsWord::from("res"), origin_span, SyntaxContext::empty()).into()),
+                                            body: Box::new(Ident::new(JsWord::from("res"), origin_span).into()),
                                             params: vec![Pat::Ident(BindingIdent {
                                                 id: Ident {
-                                                    ctxt: SyntaxContext::empty(),
                                                     span: origin_span,
                                                     sym: JsWord::from("res"),
                                                     optional: false
@@ -117,7 +112,6 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                     callee: Callee::Expr(Box::new(Expr::Member(MemberExpr {
                                         span: origin_span,
                                         obj: Box::new(Expr::Call(CallExpr {
-                                            ctxt: SyntaxContext::empty(),
                                             type_args: None,
                                             span: origin_span,
                                             callee: Callee::Import(Import {
