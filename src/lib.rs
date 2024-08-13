@@ -30,8 +30,6 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
     fn visit_mut_var_declarator(&mut self, e: &mut VarDeclarator) {
         
         e.visit_mut_children_with(self);
-
-        print!("start{:?},end:{:?}", e.span.lo, e.span.hi);
   
         let comment = Comment {
             span: DUMMY_SP,
@@ -59,21 +57,11 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
         match should_wrap {
             // 应该进行处理
             Some(true) => {
-                println!("True");
-
                 let init: &mut Box<Expr> = e.init.as_mut().unwrap();
 
-                
-
-                // self.comments.add_trailing(e.span.hi, comment);
+                self.comments.add_trailing(e.span.hi, comment);
         
-
-                
-
-
                 let origin_span = e.span;
-
-                println!("------------000000000{:?}", origin_span.hi);
 
                 *init = Box::new(Expr::Arrow(ArrowExpr {
                     span: origin_span,
@@ -136,114 +124,24 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                             )))
                         }) ]
                     }))
-                }));
-            
-             
+                })); 
                 let mut span = e.span.hi;
-                
-
-                let newInit = &**init;
-                self.comments.add_trailing(newInit.span_hi(), comment);
-                print!("After handle start{:?},end:{:?}", newInit.span().lo, newInit.span().hi);
-
-                
-                if let Expr::Arrow(ArrowExpr { body, .. }) = &*init.clone() {
-                    if let BlockStmtOrExpr::BlockStmt(BlockStmt { stmts, .. }) = &**body {
-                        if let Some(first) = stmts.first() {
-                            // span = first.span().hi;
-                            if let Stmt::Return(ReturnStmt { arg, .. }) = &*first {
-                                if let Some(arg) = arg {
-                                    if let Expr::Call(CallExpr {
-                                        callee,
-                                        ..
-                                    }) = &**arg {
-                                        if let Callee::Expr(test_item) = callee {
-                                       
-                                            if let Expr::Member(MemberExpr {
-                                                obj,
-                                                ..
-                                            }) = &**test_item
-                                            {
-                                                if let Expr::Call(CallExpr {
-                                                    callee,
-                                                    args,
-                                                    ..
-                                                }) = &**obj
-                                                {
-                                                    if let Some(first) = args.first()
-                                                    {
-                                                        
-
-                                                        if let ExprOrSpread {
-                                                            expr,
-                                                            ..
-                                                        }  = first
-                                                        {
-                                                            
-
-                                                            if let Expr::Lit(Lit::Str(Str { span, .. })) = &**expr {
-                                                                println!("-21-3-21-122-13-123-123-12");
-
-                                                                let comment = Comment {
-                                                                    span: DUMMY_SP,
-                                                                    kind: CommentKind::Block,
-                                                                    text: " webpackChunkName: 0-bundle ".into(),
-                                                                };
-
-                                                                println!("cajkscakjlcakc {:?}  acjklsclkaj", span);
-                                            
-                                                                // 添加注释到字符串字面量
-                                                                //self.comments.add_leading(span.lo, comment);
-                                                            
-                                                            }
-                                                        }
-                                                    }
-                                                    
-                                                }
-                                                
-                     
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            
+                // comments 
+                // self.comments.add_trailing(newInit.span_hi(), comment);
                 
             }
 
             // 无需进行处理
             Some(false) => {
-                println!("False");
             }
 
             _ => {
-                println!("False");
             }
         }
     
     }
 }
 
-
-
-/// An example plugin function with macro support.
-/// `plugin_transform` macro interop pointers into deserialized structs, as well
-/// as returning ptr back to host.
-///
-/// It is possible to opt out from macro by writing transform fn manually
-/// if plugin need to handle low-level ptr directly via
-/// `__transform_plugin_process_impl(
-///     ast_ptr: *const u8, ast_ptr_len: i32,
-///     unresolved_mark: u32, should_enable_comments_proxy: i32) ->
-///     i32 /*  0 for success, fail otherwise.
-///             Note this is only for internal pointer interop result,
-///             not actual transform result */`
-///
-/// This requires manual handling of serialization / deserialization from ptrs.
-/// Refer swc_plugin_macro to see how does it work internally.
 #[plugin_transform]
 pub fn process_transform(mut program: Program, metadata: TransformPluginProgramMetadata) -> Program {
     let comments = match metadata.comments {
