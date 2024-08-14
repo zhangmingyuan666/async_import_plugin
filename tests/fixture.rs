@@ -5,7 +5,7 @@ use swc_core::ecma::{
     visit::as_folder,
 };
 use swc_ecma_transforms_testing::{test_fixture, FixtureTestConfig};
-use s1s_async_import_plugin::MarkExpression;
+use s1s_async_import_plugin::{MarkExpression, Config};
 
 #[testing::fixture("tests/fixture/**/input.*")]
 fn fixture(input: PathBuf) {
@@ -13,16 +13,13 @@ fn fixture(input: PathBuf) {
     let output: PathBuf = input.with_file_name("output").with_extension(ext);
     let config_json = r#"
         {
-            "title": "MARK_EXPRESSIONS",
-            "functions": ["markFnA", "markFnB", "markFnC"],
-            "methods": {
-                "window": ["markWindowFnA", "markWindowFnB", "markWindowFnC"],
-                "this": ["markThisFnA", "markThisFnB", "markThisFnC"]
-            },
-            "dynamicImports": ["shouldMark"]
+            "title": "hadahshadh"
         }
     "#;
 
+    let config = serde_json::from_str::<Option<Config>>(config_json)
+    .expect("Invalid config")
+    .unwrap();
 
     test_fixture(
         Syntax::Typescript(TsConfig {
@@ -34,7 +31,8 @@ fn fixture(input: PathBuf) {
         }),
         &|t| {
             as_folder(MarkExpression::new(
-                t.comments.clone()
+                t.comments.clone(),
+                &config,
             ))
         },
         &input,

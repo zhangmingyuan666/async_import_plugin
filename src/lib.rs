@@ -17,10 +17,55 @@ use swc_ecma_visit::VisitMutWith;
 use swc_core::ecma::atoms::JsWord;
 use swc_ecma_utils::{quote_ident};
 
+use serde::Deserialize;
+use serde_json::Value;
+
+use std::path::Path;
+
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Config {
+    pub title: Option<String>,
+}
+
+/*
+fn update_js_chunk_pos(record: &mut Value, chunk_name: &str) -> usize {
+    let js_chunk_pos = record
+        .get_mut("jsChunkPos")
+        .expect("jsChunkPos field not found");
+
+    let dep = js_chunk_pos
+        .get_mut("dep")
+        .expect("dep field not found")
+        .as_object_mut()
+        .expect("dep is not an object");
+
+    if let Some(Value::Number(index)) = dep.get(chunk_name) {
+        index.as_u64().unwrap() as usize
+    } else {
+        let max = js_chunk_pos
+            .get_mut("max")
+            .expect("max field not found")
+            .as_u64_mut()
+            .expect("max is not an integer");
+
+        *max += 1;
+        let index = *max as usize;
+        dep.insert(chunk_name.to_owned(), json!(index));
+        index
+    }
+}
+     */
+
 impl<C: Comments> MarkExpression<C> {
-    pub fn new(comments: C) -> Self {
+    pub fn new(comments: C, config: &Config) -> Self {
+
+        let title: String = config.title.to_owned().unwrap_or_default();
+
         return Self {
-            comments
+            comments,
+            title
         }
     }
 }
@@ -28,6 +73,11 @@ impl<C: Comments> MarkExpression<C> {
 
 impl<C: Comments> VisitMut for MarkExpression<C> {
     fn visit_mut_var_declarator(&mut self, e: &mut VarDeclarator) {
+        let text = format!(
+            "---BEGIN {}–--\n",
+            self.title
+        );
+        // println!("isdog_in_var_declartor ->{:?}", text);
         
         e.visit_mut_children_with(self);
   
@@ -37,7 +87,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
             text: " webpackChunkName: 0-bundle ".into(),
         };
 
-        let mut should_wrap = Some(false);
+        let mut should_wrap: Option<bool> = Some(false);
         if let Some(Expr::Call(CallExpr {
             callee: Callee::Expr(callee),
             args,
@@ -47,8 +97,43 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
             if let Expr::Ident(ident) = &**callee {
                 // 如果发现是此函数，要给
                 if ident.sym == *"s1sAsyncImport" {
-                    should_wrap = Some(true)
+                    should_wrap = Some(true);
+
+                    
                 }   
+            }
+
+            if let Some(args_first_element) = args.first() {
+                let expr = &*args_first_element.expr;
+
+                if let  Expr::Lit(Lit:: Str(Str {
+                    value,
+                    ..
+                })) = expr {
+                    let path_str = value.as_str();
+
+                    let path = Path::new(&path_str);
+                    if let Some(file_stem) = path.file_stem() {
+                        if let Some(extension) = path.extension() {
+                            let chunk_name = format!("{}", file_stem.to_str().unwrap());
+                            println!("file_namefile_namefile_name{:?}", chunk_name); // 输出：cards
+
+                            // let index = update_js_chunk_pos(&mut record, chunk_name.as_str());
+
+                            // 去record.jsChunkPos.dep中取chunkName的value
+                            // 如果存在
+                                // index 设置为这个缓存
+                            // 如果不存在
+                                // 设置 record.jsChunkPos.max + 1
+
+                            
+
+
+                        }
+                    }
+
+                    
+                }
             }
         }
 
@@ -144,12 +229,19 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
 
 #[plugin_transform]
 pub fn process_transform(mut program: Program, metadata: TransformPluginProgramMetadata) -> Program {
+    let config_str = &metadata
+        .get_transform_plugin_config()
+        .expect("Failed to resolve config");
+
+    let config: Config = serde_json::from_str::<Option<Config>>(config_str.as_str()).expect("Invalid config")
+    .unwrap();
+    
     let comments = match metadata.comments {
         Some(comments) => comments.clone(),
         None => PluginCommentsProxy,
     };
     
-    program.visit_mut_with(&mut MarkExpression::new(comments));
+    program.visit_mut_with(&mut MarkExpression::new(comments, &config));
 
     program
 }

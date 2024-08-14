@@ -12,4 +12,5 @@ use swc_core::plugin::{plugin_transform, proxies::{TransformPluginProgramMetadat
 
 pub struct MarkExpression<C: Comments> {
     pub comments: C,
+    pub title: String
 }
