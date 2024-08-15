@@ -134,11 +134,11 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                     // println!("--- in dep ---- ");
 
                                     if let Some(result) = dep.get(chunk_name) {
-                                        println!("successful ----{:?} ", result);
+                                        // println!("successful ----{:?} ", result);
 
                                         let index = result.as_i64().unwrap().to_string();
 
-                                        comment_string = format!(" webpackChunkName: {}-{} ",index,chunk_name_copy);
+                                        comment_string = format!(" webpackChunkName: \"{}-{}\" ",index,chunk_name_copy);
 
                                         // println!("{:?}", new_string);
 
@@ -148,6 +148,8 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                     }
                                 }
                             }
+
+                            // println!("{}", comment_string);
                             
 
                             let comment = Comment {

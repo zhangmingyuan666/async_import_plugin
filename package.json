@@ -1,15 +1,18 @@
 {
     "name": "s1s-async-import-plugin",
-    "version": "0.1.0",
+    "version": "0.1.4",
     "description": "",
     "author": "",
     "license": "ISC",
-    "keywords": ["swc-plugin"],
+    "keywords": [
+        "swc-plugin"
+    ],
     "main": "target/wasm32-wasi/release/s1s_async_import_plugin.wasm",
     "scripts": {
         "prepublishOnly": "cargo build-wasi --release",
         "prepack": "cargo prepublish --release && cp target/wasm32-wasi/release/s1s_async_import_plugin.wasm ."
     },
     "files": [],
-    "preferUnplugged": true
+    "preferUnplugged": true,
+    "dependencies": {}
 }
