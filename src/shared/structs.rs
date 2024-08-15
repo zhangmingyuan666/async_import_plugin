@@ -9,8 +9,10 @@ use swc_common::{
     comments::{Comment, CommentKind, Comments}
 };
 use swc_core::plugin::{plugin_transform, proxies::{TransformPluginProgramMetadata, PluginCommentsProxy}};
+use serde_json::Value;
 
 pub struct MarkExpression<C: Comments> {
     pub comments: C,
-    pub title: String
+    pub title: String,
+    pub record: String
 }

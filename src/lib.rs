@@ -18,74 +18,81 @@ use swc_core::ecma::atoms::JsWord;
 use swc_ecma_utils::{quote_ident};
 
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{Value, to_string_pretty, from_str, Map};
 
-use std::path::Path;
+use std::{fmt::format, path::Path};
 
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub title: Option<String>,
+    pub record: Option<String>
 }
 
 /*
-fn update_js_chunk_pos(record: &mut Value, chunk_name: &str) -> usize {
-    let js_chunk_pos = record
-        .get_mut("jsChunkPos")
-        .expect("jsChunkPos field not found");
+fn update_js_chunk_pos(record: &Value, chunk_name: &str) -> Option<i32> {
+    let js_chunk_pos = record.get("jsChunkPos").expect("jsChunkPos field not found");
 
+    // let dep = js_chunk_pos.get("dep").expect("dep field not found");
+
+    // if let Some(Value::Number(index)) = dep.get(chunk_name) {
+    //     let number = index.as_i64()?;
+    //     println!("-------- ddddddddd {:?}", number);
+    //     return Some(number as i32)
+    // } else {
+    //     println!("-------- ddddddddd");
+
+    //     return None
+    // }
+    /* 
     let dep = js_chunk_pos
         .get_mut("dep")
         .expect("dep field not found")
         .as_object_mut()
         .expect("dep is not an object");
 
-    if let Some(Value::Number(index)) = dep.get(chunk_name) {
-        index.as_u64().unwrap() as usize
-    } else {
-        let max = js_chunk_pos
-            .get_mut("max")
-            .expect("max field not found")
-            .as_u64_mut()
-            .expect("max is not an integer");
+    // let max = js_chunk_pos
+    //     .get_mut("max").expect("1213").as_u64().expect("1213");
 
-        *max += 1;
-        let index = *max as usize;
-        dep.insert(chunk_name.to_owned(), json!(index));
-        index
+    if let Some(Value::Number(index)) = dep.get(chunk_name) {
+        // let number = index.as_i64()?;
+        return Some(number as i32)
+    } else {
+
+        // let new_max = max + 1;
+        // dep.insert(chunk_name.to_owned(), Value::Number(serde_json::Number::from(new_max)));
+
+        // Some(new_max as i32)
     }
+    */
+    return None
 }
-     */
+*/   
 
 impl<C: Comments> MarkExpression<C> {
     pub fn new(comments: C, config: &Config) -> Self {
 
         let title: String = config.title.to_owned().unwrap_or_default();
 
+        let record = config.record.to_owned().unwrap_or_default();
+
         return Self {
             comments,
-            title
+            title,
+            record
         }
     }
 }
 
 
 impl<C: Comments> VisitMut for MarkExpression<C> {
-    fn visit_mut_var_declarator(&mut self, e: &mut VarDeclarator) {
-        let text = format!(
-            "---BEGIN {}–--\n",
-            self.title
-        );
-        // println!("isdog_in_var_declartor ->{:?}", text);
+    fn visit_mut_var_declarator(&mut self, e: &mut VarDeclarator) {        
+        let mut import_path = String::from("");
         
-        e.visit_mut_children_with(self);
-  
-        let comment = Comment {
-            span: DUMMY_SP,
-            kind: CommentKind::Block,
-            text: " webpackChunkName: 0-bundle ".into(),
-        };
+        // e.visit_mut_children_with(self);
+
+        let mut comment_string = String::from("");
 
         let mut should_wrap: Option<bool> = Some(false);
         if let Some(Expr::Call(CallExpr {
@@ -98,8 +105,6 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                 // 如果发现是此函数，要给
                 if ident.sym == *"s1sAsyncImport" {
                     should_wrap = Some(true);
-
-                    
                 }   
             }
 
@@ -112,13 +117,52 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                 })) = expr {
                     let path_str = value.as_str();
 
+                    import_path = path_str.to_string();
+
                     let path = Path::new(&path_str);
                     if let Some(file_stem) = path.file_stem() {
                         if let Some(extension) = path.extension() {
                             let chunk_name = format!("{}", file_stem.to_str().unwrap());
-                            println!("file_namefile_namefile_name{:?}", chunk_name); // 输出：cards
 
-                            // let index = update_js_chunk_pos(&mut record, chunk_name.as_str());
+                            let chunk_name_copy = chunk_name.clone();
+
+                            let record_str = &self.record;
+                            let v: serde_json::Value = serde_json::from_str(record_str).unwrap();
+                            
+                            if let Some(jsChunkPos) = v.get("jsChunkPos") {
+                                if let Some(dep) = jsChunkPos.get("dep") {
+                                    // println!("--- in dep ---- ");
+
+                                    if let Some(result) = dep.get(chunk_name) {
+                                        println!("successful ----{:?} ", result);
+
+                                        let index = result.as_i64().unwrap().to_string();
+
+                                        comment_string = format!(" webpackChunkName: {}-{} ",index,chunk_name_copy);
+
+                                        // println!("{:?}", new_string);
+
+                                        // chunk_name
+                                    } else {
+                                        // println!("fail ----");
+                                    }
+                                }
+                            }
+                            
+
+                            let comment = Comment {
+                                span: DUMMY_SP,
+                                kind: CommentKind::Block,
+                                text: comment_string.into(),
+                            };
+                            self.comments.add_trailing(e.span.hi, comment);
+                    
+                            //let indexOption = update_js_chunk_pos(&record, chunk_name.as_str());
+
+                            // if let Some(index) = indexOption {
+                            //     println!("indexindexindex{:?}", index);
+                            // }
+
 
                             // 去record.jsChunkPos.dep中取chunkName的value
                             // 如果存在
@@ -144,7 +188,6 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
             Some(true) => {
                 let init: &mut Box<Expr> = e.init.as_mut().unwrap();
 
-                self.comments.add_trailing(e.span.hi, comment);
         
                 let origin_span = e.span;
 
@@ -195,7 +238,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                                 spread: None,
                                                 expr: Box::new(Expr::Lit(Lit::Str((Str {
                                                     span: origin_span,
-                                                    value: "1".into(),
+                                                    value: import_path.into(),
                                                     raw: None
                                                 }))))
                                             }],
