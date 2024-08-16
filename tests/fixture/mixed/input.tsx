@@ -1,1 +1,1 @@
-const cards = s1sAsyncImport('./block/cards/cards.vue')
+const c = s1sAsyncImport("@/components/async-component.vue")

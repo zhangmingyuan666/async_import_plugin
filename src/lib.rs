@@ -113,8 +113,12 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
 
                 if let  Expr::Lit(Lit:: Str(Str {
                     value,
+                    span,
                     ..
                 })) = expr {
+
+                    let insertSpan = span.lo;
+
                     let path_str = value.as_str();
 
                     import_path = path_str.to_string();
@@ -157,7 +161,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                 kind: CommentKind::Block,
                                 text: comment_string.into(),
                             };
-                            self.comments.add_trailing(e.span.hi, comment);
+                            self.comments.add_leading(insertSpan, comment);
                     
                             //let indexOption = update_js_chunk_pos(&record, chunk_name.as_str());
 
@@ -190,7 +194,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
             Some(true) => {
                 let init: &mut Box<Expr> = e.init.as_mut().unwrap();
 
-        
+
                 let origin_span = e.span;
 
                 *init = Box::new(Expr::Arrow(ArrowExpr {
