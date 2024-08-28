@@ -30,46 +30,6 @@ pub struct Config {
     pub record: Option<String>
 }
 
-/*
-fn update_js_chunk_pos(record: &Value, chunk_name: &str) -> Option<i32> {
-    let js_chunk_pos = record.get("jsChunkPos").expect("jsChunkPos field not found");
-
-    // let dep = js_chunk_pos.get("dep").expect("dep field not found");
-
-    // if let Some(Value::Number(index)) = dep.get(chunk_name) {
-    //     let number = index.as_i64()?;
-    //     println!("-------- ddddddddd {:?}", number);
-    //     return Some(number as i32)
-    // } else {
-    //     println!("-------- ddddddddd");
-
-    //     return None
-    // }
-    /* 
-    let dep = js_chunk_pos
-        .get_mut("dep")
-        .expect("dep field not found")
-        .as_object_mut()
-        .expect("dep is not an object");
-
-    // let max = js_chunk_pos
-    //     .get_mut("max").expect("1213").as_u64().expect("1213");
-
-    if let Some(Value::Number(index)) = dep.get(chunk_name) {
-        // let number = index.as_i64()?;
-        return Some(number as i32)
-    } else {
-
-        // let new_max = max + 1;
-        // dep.insert(chunk_name.to_owned(), Value::Number(serde_json::Number::from(new_max)));
-
-        // Some(new_max as i32)
-    }
-    */
-    return None
-}
-*/   
-
 impl<C: Comments> MarkExpression<C> {
     pub fn new(comments: C, config: &Config) -> Self {
 
@@ -90,8 +50,6 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
     fn visit_mut_var_declarator(&mut self, e: &mut VarDeclarator) {        
         let mut import_path = String::from("");
         
-        // e.visit_mut_children_with(self);
-
         let mut comment_string = String::from("");
 
         let mut should_wrap: Option<bool> = Some(false);
@@ -131,8 +89,9 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                             let chunk_name_copy = chunk_name.clone();
 
                             let record_str = &self.record;
-                            let v: serde_json::Value = serde_json::from_str(record_str).unwrap();
+                            // let v: serde_json::Value = serde_json::from_str(record_str).unwrap();
                             
+                            /* 
                             if let Some(jsChunkPos) = v.get("jsChunkPos") {
                                 if let Some(dep) = jsChunkPos.get("dep") {
                                     // println!("--- in dep ---- ");
@@ -152,16 +111,17 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                     }
                                 }
                             }
-
+                            */
                             // println!("{}", comment_string);
                             
 
                             let comment = Comment {
                                 span: DUMMY_SP,
                                 kind: CommentKind::Block,
-                                text: comment_string.into(),
+                                // text: "comment_string".into(),
+                                text: "comment".into()
                             };
-                            self.comments.add_leading(insertSpan, comment);
+                            // self.comments.add_leading(insertSpan, comment);
                     
                             //let indexOption = update_js_chunk_pos(&record, chunk_name.as_str());
 
@@ -194,36 +154,49 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
             Some(true) => {
                 let init: &mut Box<Expr> = e.init.as_mut().unwrap();
 
+                let importNode = ExprOrSpread {
+                    spread: None,
+                    expr: Box::new(Expr::Lit(Lit::Str((Str {
+                        span: DUMMY_SP,
+                        value: import_path.into(),
+                        raw: None
+                    }))))
+                };
 
-                let origin_span = e.span;
+                let comment = Comment {
+                    span: DUMMY_SP,
+                    kind: CommentKind::Block,
+                    text: "comment".into()
+                };
+                self.comments.add_leading(importNode.span().hi, comment);
 
                 *init = Box::new(Expr::Arrow(ArrowExpr {
-                    span: origin_span,
+                    span: DUMMY_SP,
                     params: vec![],
                     is_async: false,
                     is_generator: false,
                     type_params: None,
                     return_type: None,
                     body: Box::new(BlockStmtOrExpr::BlockStmt(BlockStmt {
-                        span: origin_span,
+                        span: DUMMY_SP,
                         stmts: vec![Stmt::Return(ReturnStmt {
-                            span: origin_span,
+                            span: DUMMY_SP,
                             arg: Some(Box::new(Expr::Call(CallExpr
                                 {
-                                    span: origin_span,
+                                    span: DUMMY_SP,
                                     type_args: None,
                                     args: vec![ExprOrSpread {
                                         spread: None,
                                         expr: Box::new(Expr::Arrow(ArrowExpr {
-                                            span: origin_span,                                           
+                                            span: DUMMY_SP,                                           
                                             is_async: false,
                                             is_generator: false,
                                             type_params: None,
                                             return_type: None,
-                                            body: Box::new(Ident::new(JsWord::from("res"), origin_span).into()),
+                                            body: Box::new(Ident::new(JsWord::from("res"), DUMMY_SP).into()),
                                             params: vec![Pat::Ident(BindingIdent {
                                                 id: Ident {
-                                                    span: origin_span,
+                                                    span: DUMMY_SP,
                                                     sym: JsWord::from("res"),
                                                     optional: false
                                                 },
@@ -232,22 +205,15 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                         })),
                                     }],
                                     callee: Callee::Expr(Box::new(Expr::Member(MemberExpr {
-                                        span: origin_span,
+                                        span: DUMMY_SP,
                                         obj: Box::new(Expr::Call(CallExpr {
                                             type_args: None,
-                                            span: origin_span,
+                                            span: DUMMY_SP,
                                             callee: Callee::Import(Import {
-                                                span: origin_span,
+                                                span: DUMMY_SP,
                                                 phase: ImportPhase::Evaluation,
                                             }),
-                                            args: vec![ExprOrSpread {
-                                                spread: None,
-                                                expr: Box::new(Expr::Lit(Lit::Str((Str {
-                                                    span: origin_span,
-                                                    value: import_path.into(),
-                                                    raw: None
-                                                }))))
-                                            }],
+                                            args: vec![importNode],
                                         })),
                                         prop: MemberProp::Ident(quote_ident!("then")),
                                 })))
@@ -260,15 +226,8 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                     }))
                 })); 
                 let mut span = e.span.hi;
-                // comments 
-                // self.comments.add_trailing(newInit.span_hi(), comment);
                 
             }
-
-            // 无需进行处理
-            Some(false) => {
-            }
-
             _ => {
             }
         }
