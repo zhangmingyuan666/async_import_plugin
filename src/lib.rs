@@ -157,7 +157,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                 let importNode = ExprOrSpread {
                     spread: None,
                     expr: Box::new(Expr::Lit(Lit::Str((Str {
-                        span: DUMMY_SP,
+                        span: Span::dummy_with_cmt(),
                         value: import_path.into(),
                         raw: None
                     }))))
