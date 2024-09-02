@@ -89,9 +89,9 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                             let chunk_name_copy = chunk_name.clone();
 
                             let record_str = &self.record;
-                            // let v: serde_json::Value = serde_json::from_str(record_str).unwrap();
+                            let v: serde_json::Value = serde_json::from_str(record_str).unwrap();
                             
-                            /* 
+                            
                             if let Some(jsChunkPos) = v.get("jsChunkPos") {
                                 if let Some(dep) = jsChunkPos.get("dep") {
                                     // println!("--- in dep ---- ");
@@ -111,16 +111,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                     }
                                 }
                             }
-                            */
-                            // println!("{}", comment_string);
-                            
-
-                            let comment = Comment {
-                                span: DUMMY_SP,
-                                kind: CommentKind::Block,
-                                // text: "comment_string".into(),
-                                text: "comment".into()
-                            };
+                                                        
                             // self.comments.add_leading(insertSpan, comment);
                     
                             //let indexOption = update_js_chunk_pos(&record, chunk_name.as_str());
@@ -154,7 +145,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
             Some(true) => {
                 let init: &mut Box<Expr> = e.init.as_mut().unwrap();
 
-                let importNode = ExprOrSpread {
+                let import_node = ExprOrSpread {
                     spread: None,
                     expr: Box::new(Expr::Lit(Lit::Str((Str {
                         span: Span::dummy_with_cmt(),
@@ -166,9 +157,9 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                 let comment = Comment {
                     span: DUMMY_SP,
                     kind: CommentKind::Block,
-                    text: "comment".into()
+                    text: comment_string.into()
                 };
-                self.comments.add_leading(importNode.span().hi, comment);
+                self.comments.add_leading(import_node.span().hi, comment);
 
                 *init = Box::new(Expr::Arrow(ArrowExpr {
                     span: DUMMY_SP,
@@ -213,7 +204,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                                 span: DUMMY_SP,
                                                 phase: ImportPhase::Evaluation,
                                             }),
-                                            args: vec![importNode],
+                                            args: vec![import_node],
                                         })),
                                         prop: MemberProp::Ident(quote_ident!("then")),
                                 })))
