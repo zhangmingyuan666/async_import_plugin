@@ -22,6 +22,10 @@ use serde_json::{Value, to_string_pretty, from_str, Map};
 
 use std::{fmt::format, path::Path};
 
+use std::fs;
+use std::env;
+use std::fs::OpenOptions;
+use std::io::Write;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,7 +36,6 @@ pub struct Config {
 
 impl<C: Comments> MarkExpression<C> {
     pub fn new(comments: C, config: &Config) -> Self {
-
         let title: String = config.title.to_owned().unwrap_or_default();
 
         let record = config.record.to_owned().unwrap_or_default();
@@ -63,78 +66,62 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                 // 如果发现是此函数，要给
                 if ident.sym == *"s1sAsyncImport" {
                     should_wrap = Some(true);
-                }   
-            }
 
-            if let Some(args_first_element) = args.first() {
-                let expr = &*args_first_element.expr;
+                    if let Some(args_first_element) = args.first() {
+                        let expr = &*args_first_element.expr;
+                        if let  Expr::Lit(Lit:: Str(Str {
+                            value,
+                            span,
+                            ..
+                        })) = expr {        
+                            let path_str = value.as_str();     
+                            import_path = path_str.to_string();
+        
+                            let path = Path::new(&path_str);
+        
+                            if let Some(file_stem) = path.file_stem() {
+                                    let chunk_name = format!("{}", file_stem.to_str().unwrap());
+        
+                                    let chunk_name_copy = chunk_name.clone();
 
-                if let  Expr::Lit(Lit:: Str(Str {
-                    value,
-                    span,
-                    ..
-                })) = expr {
-
-                    let insertSpan = span.lo;
-
-                    let path_str = value.as_str();
-
-                    import_path = path_str.to_string();
-
-                    let path = Path::new(&path_str);
-                    if let Some(file_stem) = path.file_stem() {
-                        if let Some(extension) = path.extension() {
-                            let chunk_name = format!("{}", file_stem.to_str().unwrap());
-
-                            let chunk_name_copy = chunk_name.clone();
-
-                            let record_str = &self.record;
-                            let v: serde_json::Value = serde_json::from_str(record_str).unwrap();
-                            
-                            
-                            if let Some(jsChunkPos) = v.get("jsChunkPos") {
-                                if let Some(dep) = jsChunkPos.get("dep") {
-                                    // println!("--- in dep ---- ");
-
-                                    if let Some(result) = dep.get(chunk_name) {
-                                        // println!("successful ----{:?} ", result);
-
-                                        let index = result.as_i64().unwrap().to_string();
-
-                                        comment_string = format!(" webpackChunkName: \"{}-{}\" ",index,chunk_name_copy);
-
-                                        // println!("{:?}", new_string);
-
-                                        // chunk_name
-                                    } else {
-                                        // println!("fail ----");
+                                    let record_str = &self.record;
+                                    let v: serde_json::Value = serde_json::from_str(record_str).unwrap();
+                                    
+                                    if let Some(jsChunkPos) = v.get("jsChunkPos") {
+                                        let max = jsChunkPos.get("max").unwrap();
+                                        if let Some(dep) = jsChunkPos.get("dep") {        
+                                            if let Some(result) = dep.get(chunk_name) {        
+                                                let index = result.as_i64().unwrap().to_string();
+        
+                                                comment_string = format!(" webpackChunkName: \"{}-{}\" ",index,chunk_name_copy);
+                                            } else {
+                                                let current_dir = env::current_dir().unwrap();
+                                                let map_path = current_dir.join("gogo.txt");
+                                                let mut file = OpenOptions::new()
+                                                    .read(true)
+                                                    .write(true)
+                                                    .create(true)
+                                                    .append(true)
+                                                    .open(map_path)
+                                                    .expect("Failed to open or create the file");
+        
+                                                    let max: String = max.as_i64().unwrap().to_string();
+                                                    let a = "comment_string";
+                                                    let b = format!("{}-{}",max,chunk_name_copy);
+                                                    let c = b.clone();
+        
+                                                    println!("ini, {:?}", c.as_str());
+        
+        
+                                                    writeln!(file, "{}", c.as_str());
+                                            }
+                                        }
                                     }
-                                }
-                            }
-                                                        
-                            // self.comments.add_leading(insertSpan, comment);
-                    
-                            //let indexOption = update_js_chunk_pos(&record, chunk_name.as_str());
-
-                            // if let Some(index) = indexOption {
-                            //     println!("indexindexindex{:?}", index);
-                            // }
-
-
-                            // 去record.jsChunkPos.dep中取chunkName的value
-                            // 如果存在
-                                // index 设置为这个缓存
-                            // 如果不存在
-                                // 设置 record.jsChunkPos.max + 1
-
-                            
-
-
+                            }      
                         }
                     }
-
-                    
-                }
+                
+                }   
             }
         }
 
@@ -215,9 +202,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                             )))
                         }) ]
                     }))
-                })); 
-                let mut span = e.span.hi;
-                
+                }));                 
             }
             _ => {
             }
