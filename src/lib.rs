@@ -27,6 +27,10 @@ use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
 
+use chrono::Utc;
+use std::cell::RefCell;
+thread_local!(static GLOBAL_DATA: RefCell<i64> = RefCell::new(0));
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
@@ -89,6 +93,17 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                     
                                     if let Some(jsChunkPos) = v.get("jsChunkPos") {
                                         let max = jsChunkPos.get("max").unwrap();
+
+                                        GLOBAL_DATA.with(|text| {
+                                            let value = *text.borrow();
+                                            if value == 0 {
+                                                println!("Global string is {}", *text.borrow());
+                                                let max_value = max.as_i64().unwrap();
+
+                                                *text.borrow_mut() = max_value;
+                                            }
+                                        });
+                                        
                                         if let Some(dep) = jsChunkPos.get("dep") {        
                                             if let Some(result) = dep.get(chunk_name) {        
                                                 let index = result.as_i64().unwrap().to_string();
@@ -114,6 +129,8 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
         
         
                                                     writeln!(file, "{}", c.as_str());
+
+                                                    
                                             }
                                         }
                                     }
