@@ -17,21 +17,40 @@ use swc_ecma_visit::VisitMutWith;
 use swc_core::ecma::atoms::JsWord;
 use swc_ecma_utils::{quote_ident};
 
-use serde::Deserialize;
+use serde::{de::value, Deserialize};
 use serde_json::{Value, to_string_pretty, from_str, Map};
 
-use std::{fmt::format, path::Path};
+use std::{fmt::format, io::Read, path::Path};
 
 use std::fs;
 use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
+use chrono::Utc;
+use std::sync::Mutex;
+use std::sync::Once;
+use std::borrow::BorrowMut;
 
+static mut STD_ONCE_COUNTER: Option<Mutex<i64>> = None;
+static INIT: Once = Once::new();
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub title: Option<String>,
     pub record: Option<String>
+}
+
+fn global_string<'a>() -> &'a Mutex<i64> {
+    INIT.call_once(|| {
+        // Since this access is inside a call_once, before any other accesses, it is safe
+        unsafe {
+            *STD_ONCE_COUNTER.borrow_mut() = Some(Mutex::new(0));
+        }
+    });
+    // As long as this function is the only place with access to the static variable,
+    // giving out a read-only borrow here is safe because it is guaranteed no more mutable
+    // references will exist at this point or in the future.
+    unsafe { STD_ONCE_COUNTER.as_ref().unwrap() }
 }
 
 impl<C: Comments> MarkExpression<C> {
@@ -89,6 +108,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                     
                                     if let Some(jsChunkPos) = v.get("jsChunkPos") {
                                         let max = jsChunkPos.get("max").unwrap();
+                                        let max_i64 = max.as_i64();
                                         if let Some(dep) = jsChunkPos.get("dep") {        
                                             if let Some(result) = dep.get(chunk_name) {        
                                                 let index = result.as_i64().unwrap().to_string();
@@ -96,7 +116,8 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                                 comment_string = format!(" webpackChunkName: \"{}-{}\" ",index,chunk_name_copy);
                                             } else {
                                                 let current_dir = env::current_dir().unwrap();
-                                                let map_path = current_dir.join("gogo.txt");
+                                                let map_path = current_dir.join("swc-chunk-pos.json");
+
                                                 let mut file = OpenOptions::new()
                                                     .read(true)
                                                     .write(true)
@@ -104,16 +125,32 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                                     .append(true)
                                                     .open(map_path)
                                                     .expect("Failed to open or create the file");
-        
-                                                    let max: String = max.as_i64().unwrap().to_string();
-                                                    let a = "comment_string";
-                                                    let b = format!("{}-{}",max,chunk_name_copy);
-                                                    let c = b.clone();
-        
-                                                    println!("ini, {:?}", c.as_str());
-        
-        
-                                                    writeln!(file, "{}", c.as_str());
+
+                                                    let global_value = *global_string().lock().unwrap();
+                                                    // 首次获取到新组件，需要写入到json文件内
+                                                    if global_value == 0 {
+                        
+                                                        let max_value = max_i64.unwrap() + 1;
+                                                        // 设置新的maxValue
+                                                        *global_string().lock().unwrap() = max_value;
+
+                                                        let file_insert_string = format!("{}||{}@@",max_value.to_string(),chunk_name_copy);
+
+                                                        writeln!(file, "{}", file_insert_string.as_str());
+
+                                                        comment_string = format!(" webpackChunkName: \"{}-{}\" ",max_value.to_string(),chunk_name_copy);
+                                                    } else {
+                                                        // 设置新的maxValue
+                                                        let max_value = global_value + 1;
+
+                                                        *global_string().lock().unwrap() = max_value;
+
+                                                        let file_insert_string = format!("{}||{}@@",max_value.to_string(),chunk_name_copy);
+
+                                                        writeln!(file, "{}", file_insert_string.as_str());
+
+                                                        comment_string = format!(" webpackChunkName: \"{}-{}\" ",max_value.to_string(),chunk_name_copy);
+                                                    }
                                             }
                                         }
                                     }
