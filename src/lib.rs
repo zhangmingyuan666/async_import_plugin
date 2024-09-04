@@ -136,7 +136,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
 
                                                         let file_insert_string = format!("{}||{}@@",max_value.to_string(),chunk_name_copy);
 
-                                                        writeln!(file, "{}", file_insert_string.as_str());
+                                                        write!(file, "{}", file_insert_string.as_str());
 
                                                         comment_string = format!(" webpackChunkName: \"{}-{}\" ",max_value.to_string(),chunk_name_copy);
                                                     } else {
@@ -147,7 +147,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
 
                                                         let file_insert_string = format!("{}||{}@@",max_value.to_string(),chunk_name_copy);
 
-                                                        writeln!(file, "{}", file_insert_string.as_str());
+                                                        write!(file, "{}", file_insert_string.as_str());
 
                                                         comment_string = format!(" webpackChunkName: \"{}-{}\" ",max_value.to_string(),chunk_name_copy);
                                                     }
