@@ -13,6 +13,5 @@ use serde_json::Value;
 
 pub struct MarkExpression<C: Comments> {
     pub comments: C,
-    pub title: String,
     pub record: String
 }

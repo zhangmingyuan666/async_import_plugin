@@ -1,67 +1,56 @@
-use swc_common::{plugin::metadata, SyntaxContext};
 use swc_core::ecma::{
     ast::*,
     transforms::testing::test_inline,
     visit::{as_folder, FoldWith, VisitMut},
+    atoms::JsWord
 };
-use swc_common::{
-    BytePos, SourceMapperDyn, Spanned, DUMMY_SP, Span,
-    comments::{Comment, CommentKind, Comments}
-};
+
 use swc_core::plugin::{plugin_transform, proxies::{TransformPluginProgramMetadata, PluginCommentsProxy}};
 
-mod shared;
-pub use crate::shared::structs::MarkExpression;
+use swc_common::{
+    BytePos, SourceMapperDyn, Spanned, DUMMY_SP, Span, SyntaxContext,
+    comments::{Comment, CommentKind, Comments},
+    plugin::metadata
+};
 
 use swc_ecma_visit::VisitMutWith;
-use swc_core::ecma::atoms::JsWord;
-use swc_ecma_utils::{quote_ident};
+use swc_ecma_utils::quote_ident;
 
 use serde::{de::value, Deserialize};
 use serde_json::{Value, to_string_pretty, from_str, Map};
 
-use std::{fmt::format, io::Read, path::Path};
+use std::{
+    fmt::format, io::{Read, Write}, path::Path, fs::OpenOptions, env,
+    sync::{Mutex, Once},
+    borrow::BorrowMut
+};
 
-use std::fs;
-use std::env;
-use std::fs::OpenOptions;
-use std::io::Write;
-use chrono::Utc;
-use std::sync::Mutex;
-use std::sync::Once;
-use std::borrow::BorrowMut;
+mod shared;
+pub use crate::shared::structs::MarkExpression;
 
 static mut STD_ONCE_COUNTER: Option<Mutex<i64>> = None;
 static INIT: Once = Once::new();
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
-    pub title: Option<String>,
     pub record: Option<String>
 }
 
 fn global_string<'a>() -> &'a Mutex<i64> {
     INIT.call_once(|| {
-        // Since this access is inside a call_once, before any other accesses, it is safe
         unsafe {
             *STD_ONCE_COUNTER.borrow_mut() = Some(Mutex::new(0));
         }
     });
-    // As long as this function is the only place with access to the static variable,
-    // giving out a read-only borrow here is safe because it is guaranteed no more mutable
-    // references will exist at this point or in the future.
     unsafe { STD_ONCE_COUNTER.as_ref().unwrap() }
 }
 
 impl<C: Comments> MarkExpression<C> {
     pub fn new(comments: C, config: &Config) -> Self {
-        let title: String = config.title.to_owned().unwrap_or_default();
-
         let record = config.record.to_owned().unwrap_or_default();
 
         return Self {
             comments,
-            title,
             record
         }
     }
@@ -82,7 +71,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
         })) = e.init.as_deref().as_mut()
         {
             if let Expr::Ident(ident) = &**callee {
-                // 如果发现是此函数，要给
+                // s1sAsyncImport 才需要进行处理
                 if ident.sym == *"s1sAsyncImport" {
                     should_wrap = Some(true);
 
@@ -93,10 +82,11 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                             span,
                             ..
                         })) = expr {        
-                            let path_str = value.as_str();     
-                            import_path = path_str.to_string();
-        
+
+                            let path_str = value.as_str();             
                             let path = Path::new(&path_str);
+
+                            import_path = path_str.to_string();
         
                             if let Some(file_stem) = path.file_stem() {
                                     let chunk_name = format!("{}", file_stem.to_str().unwrap());
@@ -104,17 +94,23 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                     let chunk_name_copy = chunk_name.clone();
 
                                     let record_str = &self.record;
+
+                                    // json 文件解析出的结果赋值在 v 对象上
+                                    // 如果缓存首次json解析的能力是否有更好的性能
                                     let v: serde_json::Value = serde_json::from_str(record_str).unwrap();
                                     
                                     if let Some(jsChunkPos) = v.get("jsChunkPos") {
+                                        // 缓存的最大值
                                         let max = jsChunkPos.get("max").unwrap();
                                         let max_i64 = max.as_i64();
+
                                         if let Some(dep) = jsChunkPos.get("dep") {        
                                             if let Some(result) = dep.get(chunk_name) {        
                                                 let index = result.as_i64().unwrap().to_string();
         
                                                 comment_string = format!(" webpackChunkName: \"{}-{}\" ",index,chunk_name_copy);
                                             } else {
+                                                // 组成缓存文件的路径
                                                 let current_dir = env::current_dir().unwrap();
                                                 let map_path = current_dir.join("swc-chunk-pos.json");
 
@@ -127,30 +123,24 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                                     .expect("Failed to open or create the file");
 
                                                     let global_value = *global_string().lock().unwrap();
-                                                    // 首次获取到新组件，需要写入到json文件内
+                                                    
+                                                    let mut max_value = 0 as i64;
                                                     if global_value == 0 {
-                        
-                                                        let max_value = max_i64.unwrap() + 1;
-                                                        // 设置新的maxValue
-                                                        *global_string().lock().unwrap() = max_value;
-
-                                                        let file_insert_string = format!("{}||{}@@",max_value.to_string(),chunk_name_copy);
-
-                                                        write!(file, "{}", file_insert_string.as_str());
-
-                                                        comment_string = format!(" webpackChunkName: \"{}-{}\" ",max_value.to_string(),chunk_name_copy);
+                                                        max_value = max_i64.unwrap() + 1;
                                                     } else {
                                                         // 设置新的maxValue
-                                                        let max_value = global_value + 1;
-
-                                                        *global_string().lock().unwrap() = max_value;
-
-                                                        let file_insert_string = format!("{}||{}@@",max_value.to_string(),chunk_name_copy);
-
-                                                        write!(file, "{}", file_insert_string.as_str());
-
-                                                        comment_string = format!(" webpackChunkName: \"{}-{}\" ",max_value.to_string(),chunk_name_copy);
+                                                        max_value = global_value + 1;
                                                     }
+                                                    // 设置全局变量
+                                                    *global_string().lock().unwrap() = max_value;
+
+                                                    // 组成设置写入「缓存文件」的字符串
+                                                    let file_insert_string = format!("{}||{}@@",max_value.to_string(),chunk_name_copy);
+
+                                                    write!(file, "{}", file_insert_string.as_str());
+
+                                                    // 组成「魔法注释」的字符串
+                                                    comment_string = format!(" webpackChunkName: \"{}-{}\" ",max_value.to_string(),chunk_name_copy);
                                             }
                                         }
                                     }
@@ -162,29 +152,33 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
             }
         }
 
-        
-
         match should_wrap {
             // 应该进行处理
             Some(true) => {
                 let init: &mut Box<Expr> = e.init.as_mut().unwrap();
 
+                // import 路径字符串的 AST 节点
                 let import_node = ExprOrSpread {
                     spread: None,
                     expr: Box::new(Expr::Lit(Lit::Str((Str {
+                        // dummy_with_cmt 包含上下文信息的 Dummy Span
                         span: Span::dummy_with_cmt(),
                         value: import_path.into(),
                         raw: None
                     }))))
                 };
 
+                // import 路径字符串的 AST 节点
                 let comment = Comment {
                     span: DUMMY_SP,
                     kind: CommentKind::Block,
                     text: comment_string.into()
                 };
+
+                // 加入注释
                 self.comments.add_leading(import_node.span().hi, comment);
 
+                // 赋值新 AST 结构
                 *init = Box::new(Expr::Arrow(ArrowExpr {
                     span: DUMMY_SP,
                     params: vec![],
@@ -232,9 +226,6 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                         })),
                                         prop: MemberProp::Ident(quote_ident!("then")),
                                 })))
-                                    
-                                    
-
                                 }
                             )))
                         }) ]
