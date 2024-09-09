@@ -30,6 +30,10 @@ pub use crate::shared::structs::MarkExpression;
 
 static mut STD_ONCE_COUNTER: Option<Mutex<i64>> = None;
 static INIT: Once = Once::new();
+
+static mut JSON_VALUE: Option<Mutex<serde_json::Value>> = None;
+static INIT_VALUE: Once = Once::new();
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
@@ -43,6 +47,15 @@ fn global_string<'a>() -> &'a Mutex<i64> {
         }
     });
     unsafe { STD_ONCE_COUNTER.as_ref().unwrap() }
+}
+
+fn global_map_json<'a>() -> &'a Mutex<serde_json::Value> {
+    INIT.call_once(|| {
+        unsafe {
+            *JSON_VALUE.borrow_mut() = Some(Mutex::new(Value::Null));
+        }
+    });
+    unsafe { JSON_VALUE.as_ref().unwrap() }
 }
 
 impl<C: Comments> MarkExpression<C> {
@@ -97,7 +110,16 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
 
                                     // json 文件解析出的结果赋值在 v 对象上
                                     // 如果缓存首次json解析的能力是否有更好的性能
-                                    let v: serde_json::Value = serde_json::from_str(record_str).unwrap();
+                                    let mut v: serde_json::Value = Value::Null;
+                                    let global_map_value = global_map_json().lock().unwrap().clone();
+
+                                    if global_map_value == Value::Null {
+                                        let res: serde_json::Value = serde_json::from_str(record_str).unwrap();
+                                        v = res.clone();
+                                        *global_map_json().lock().unwrap() = res;
+                                    } else {
+                                        v = global_map_value;
+                                    }
                                     
                                     if let Some(jsChunkPos) = v.get("jsChunkPos") {
                                         // 缓存的最大值
