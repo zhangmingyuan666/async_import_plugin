@@ -50,7 +50,7 @@ fn global_string<'a>() -> &'a Mutex<i64> {
 }
 
 fn global_map_json<'a>() -> &'a Mutex<serde_json::Value> {
-    INIT.call_once(|| {
+    INIT_VALUE.call_once(|| {
         unsafe {
             *JSON_VALUE.borrow_mut() = Some(Mutex::new(Value::Null));
         }
