@@ -37,7 +37,8 @@ static INIT_VALUE: Once = Once::new();
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
-    pub record: Option<String>
+    pub record: Option<String>,
+    pub noSplit: bool
 }
 
 fn global_string<'a>() -> &'a Mutex<i64> {
@@ -61,10 +62,12 @@ fn global_map_json<'a>() -> &'a Mutex<serde_json::Value> {
 impl<C: Comments> MarkExpression<C> {
     pub fn new(comments: C, config: &Config) -> Self {
         let record = config.record.to_owned().unwrap_or_default();
+        let noSplit = config.noSplit;
 
         return Self {
             comments,
-            record
+            record,
+            noSplit
         }
     }
 }
@@ -129,8 +132,16 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                         if let Some(dep) = jsChunkPos.get("dep") {        
                                             if let Some(result) = dep.get(chunk_name) {        
                                                 let index = result.as_i64().unwrap().to_string();
-        
-                                                comment_string = format!(" webpackChunkName: \"{}-{}\" ",index,chunk_name_copy);
+
+                                                let noSplitRef = self.noSplit;
+
+                                                if noSplitRef {
+                                                    comment_string = format!(" webpackChunkName: \"eager\" ");
+                                                } else {
+                                                    comment_string = format!(" webpackChunkName: \"{}-{}\" ",index,chunk_name_copy);
+                                                }
+
+
                                             } else {
                                                 // 组成缓存文件的路径
                                                 let current_dir = env::current_dir().unwrap();
@@ -162,7 +173,16 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                                     write!(file, "{}", file_insert_string.as_str());
 
                                                     // 组成「魔法注释」的字符串
+                                                   
+                                                    // comment_string = format!(" webpackChunkName: \"eager\" ");
+
+                                                    let noSplitRef = self.noSplit;
+
+                                                if noSplitRef {
+                                                    comment_string = format!(" webpackChunkName: \"eager\" ");
+                                                } else {
                                                     comment_string = format!(" webpackChunkName: \"{}-{}\" ",max_value.to_string(),chunk_name_copy);
+                                                }
                                             }
                                         }
                                     }
