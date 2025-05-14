@@ -1,9 +1,11 @@
+#![feature(iter_repeat_n)]
 use swc_core::ecma::{
     ast::*,
     transforms::testing::test_inline,
-    visit::{as_folder, FoldWith, VisitMut},
-    atoms::JsWord
+    visit::{FoldWith, VisitMut},
 };
+
+use swc_atoms::Atom;
 
 use swc_core::plugin::{plugin_transform, proxies::{TransformPluginProgramMetadata, PluginCommentsProxy}};
 
@@ -222,6 +224,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
 
                 // 赋值新 AST 结构
                 *init = Box::new(Expr::Arrow(ArrowExpr {
+                    ctxt: SyntaxContext::empty(),
                     span: DUMMY_SP,
                     params: vec![],
                     is_async: false,
@@ -229,26 +232,29 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                     type_params: None,
                     return_type: None,
                     body: Box::new(BlockStmtOrExpr::BlockStmt(BlockStmt {
+                        ctxt: SyntaxContext::empty(),
                         span: DUMMY_SP,
                         stmts: vec![Stmt::Return(ReturnStmt {
                             span: DUMMY_SP,
                             arg: Some(Box::new(Expr::Call(CallExpr
                                 {
                                     span: DUMMY_SP,
+                                    ctxt: SyntaxContext::empty(),
                                     type_args: None,
                                     args: vec![ExprOrSpread {
                                         spread: None,
                                         expr: Box::new(Expr::Arrow(ArrowExpr {
-                                            span: DUMMY_SP,                                           
+                                            span: DUMMY_SP,                                                              ctxt: SyntaxContext::empty(),
                                             is_async: false,
                                             is_generator: false,
                                             type_params: None,
                                             return_type: None,
-                                            body: Box::new(Ident::new(JsWord::from("res"), DUMMY_SP).into()),
+                                            body: Box::new(Ident::new(Atom::from("res"), DUMMY_SP, SyntaxContext::empty(),).into()),
                                             params: vec![Pat::Ident(BindingIdent {
                                                 id: Ident {
+                                                    ctxt: SyntaxContext::empty(),
                                                     span: DUMMY_SP,
-                                                    sym: JsWord::from("res"),
+                                                    sym: Atom::from("res"),
                                                     optional: false
                                                 },
                                                 type_ann: None
@@ -258,6 +264,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                     callee: Callee::Expr(Box::new(Expr::Member(MemberExpr {
                                         span: DUMMY_SP,
                                         obj: Box::new(Expr::Call(CallExpr {
+                                            ctxt: SyntaxContext::empty(),
                                             type_args: None,
                                             span: DUMMY_SP,
                                             callee: Callee::Import(Import {

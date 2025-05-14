@@ -2,7 +2,7 @@ use swc_common::plugin::metadata;
 use swc_core::ecma::{
     ast::*,
     transforms::testing::test_inline,
-    visit::{as_folder, FoldWith, VisitMut},
+    visit::{FoldWith, VisitMut},
 };
 use swc_common::{
     BytePos, SourceMapperDyn, Spanned, DUMMY_SP, Span,
