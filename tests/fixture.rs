@@ -54,7 +54,8 @@ fn fixture(input: PathBuf) {
     let ext = input.extension().unwrap();
     let output: PathBuf = input.with_file_name("output").with_extension(ext);
     let config_json = serde_json::to_string(&json!({
-        "record": record_str
+        "record": record_str,
+        "noSplit": false
     })).unwrap();
 
     let config = serde_json::from_str::<Option<Config>>(config_json.as_str())

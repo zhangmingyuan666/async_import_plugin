@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo check:*)",
+      "Bash(rustup run nightly cargo check:*)",
+      "Bash(rustup toolchain:*)",
+      "Bash(rustc:*)",
+      "Bash(cargo build:*)"
+    ]
+  }
+}
