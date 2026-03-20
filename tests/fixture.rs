@@ -1,10 +1,8 @@
 use std::path::PathBuf;
 
-use swc_ecma_parser::{Syntax, TsConfig};
-use swc_core::ecma::{
-    visit::as_folder,
-};
-use swc_ecma_transforms_testing::{test_fixture, FixtureTestConfig};
+use swc_ecma_parser::{Syntax, TsSyntax};
+use swc_ecma_transforms_testing::test_fixture;
+use swc_ecma_visit::visit_mut_pass;
 use s1s_async_import_plugin::{MarkExpression, Config};
 
 use std::fs::File;
@@ -63,15 +61,16 @@ fn fixture(input: PathBuf) {
     .unwrap();
 
     test_fixture(
-        Syntax::Typescript(TsConfig {
+        Syntax::Typescript(TsSyntax {
             tsx: true,
             decorators: false,
             dts: false,
             no_early_errors: false,
             disallow_ambiguous_jsx_like: false,
+            ..Default::default()
         }),
         &|t| {
-            as_folder(MarkExpression::new(
+            visit_mut_pass(MarkExpression::new(
                 t.comments.clone(),
                 &config,
             ))

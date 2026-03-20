@@ -1,0 +1,9 @@
+{
+  "version": "v1",
+  "packages": {
+    "s1s-async-import-plugin": {
+      "signature": "9dd505de27f4a145489e6e0e401c8711",
+      "file": true
+    }
+  }
+}

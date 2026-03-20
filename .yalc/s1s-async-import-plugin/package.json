@@ -14,7 +14,6 @@
     },
     "files": [],
     "preferUnplugged": true,
-    "dependencies": {
-        "s1s-async-import-plugin": "file:.yalc/s1s-async-import-plugin"
-    }
+    "dependencies": {},
+    "yalcSig": "9dd505de27f4a145489e6e0e401c8711"
 }

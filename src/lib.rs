@@ -1,26 +1,21 @@
 use swc_core::ecma::{
     ast::*,
-    transforms::testing::test_inline,
-    visit::{as_folder, FoldWith, VisitMut},
-    atoms::JsWord
+    visit::VisitMut,
 };
-
-use swc_core::plugin::{plugin_transform, proxies::{TransformPluginProgramMetadata, PluginCommentsProxy}};
-
-use swc_common::{
-    BytePos, SourceMapperDyn, Spanned, DUMMY_SP, Span, SyntaxContext,
+use swc_core::common::{
+    Spanned, DUMMY_SP, Span,
     comments::{Comment, CommentKind, Comments},
-    plugin::metadata
 };
+use swc_core::plugin::{plugin_transform, proxies::TransformPluginProgramMetadata};
+use swc_core::atoms::Atom;
+use swc_core::ecma::visit::VisitMutWith;
+use swc_core::ecma::utils::quote_ident;
 
-use swc_ecma_visit::VisitMutWith;
-use swc_ecma_utils::quote_ident;
-
-use serde::{de::value, Deserialize};
-use serde_json::{Value, to_string_pretty, from_str, Map};
+use serde::Deserialize;
+use serde_json::Value;
 
 use std::{
-    fmt::format, io::{Read, Write}, path::Path, fs::OpenOptions, env,
+    io::{Read, Write}, path::Path, fs::OpenOptions, env,
     sync::{Mutex, Once},
     borrow::BorrowMut
 };
@@ -74,9 +69,9 @@ impl<C: Comments> MarkExpression<C> {
 
 
 impl<C: Comments> VisitMut for MarkExpression<C> {
-    fn visit_mut_var_declarator(&mut self, e: &mut VarDeclarator) {        
+    fn visit_mut_var_declarator(&mut self, e: &mut VarDeclarator) {
         let mut import_path = String::from("");
-        
+
         let mut comment_string = String::from("");
 
         let mut should_wrap: Option<bool> = Some(false);
@@ -97,16 +92,15 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                             value,
                             span,
                             ..
-                        })) = expr {        
+                        })) = expr {
 
-                            let path_str = value.as_str();             
+                            let path_str = String::from_utf8_lossy(value.as_bytes()).to_string();
+                            import_path = path_str.clone();
                             let path = Path::new(&path_str);
 
-                            import_path = path_str.to_string();
-        
                             if let Some(file_stem) = path.file_stem() {
                                     let chunk_name = format!("{}", file_stem.to_str().unwrap());
-        
+
                                     let chunk_name_copy = chunk_name.clone();
 
                                     let record_str = &self.record;
@@ -123,14 +117,14 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                     } else {
                                         v = global_map_value;
                                     }
-                                    
+
                                     if let Some(jsChunkPos) = v.get("jsChunkPos") {
                                         // 缓存的最大值
                                         let max = jsChunkPos.get("max").unwrap();
                                         let max_i64 = max.as_i64();
 
-                                        if let Some(dep) = jsChunkPos.get("dep") {        
-                                            if let Some(result) = dep.get(chunk_name) {        
+                                        if let Some(dep) = jsChunkPos.get("dep") {
+                                            if let Some(result) = dep.get(chunk_name) {
                                                 let index = result.as_i64().unwrap().to_string();
 
                                                 let noSplitRef = self.noSplit;
@@ -156,7 +150,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                                     .expect("Failed to open or create the file");
 
                                                     let global_value = *global_string().lock().unwrap();
-                                                    
+
                                                     let mut max_value = 0 as i64;
                                                     if global_value == 0 {
                                                         max_value = max_i64.unwrap() + 1;
@@ -173,8 +167,6 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                                     write!(file, "{}", file_insert_string.as_str());
 
                                                     // 组成「魔法注释」的字符串
-                                                   
-                                                    // comment_string = format!(" webpackChunkName: \"eager\" ");
 
                                                     let noSplitRef = self.noSplit;
 
@@ -186,11 +178,11 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                             }
                                         }
                                     }
-                            }      
+                            }
                         }
                     }
-                
-                }   
+
+                }
             }
         }
 
@@ -223,6 +215,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                 // 赋值新 AST 结构
                 *init = Box::new(Expr::Arrow(ArrowExpr {
                     span: DUMMY_SP,
+                    ctxt: Default::default(),
                     params: vec![],
                     is_async: false,
                     is_generator: false,
@@ -230,27 +223,26 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                     return_type: None,
                     body: Box::new(BlockStmtOrExpr::BlockStmt(BlockStmt {
                         span: DUMMY_SP,
+                        ctxt: Default::default(),
                         stmts: vec![Stmt::Return(ReturnStmt {
                             span: DUMMY_SP,
                             arg: Some(Box::new(Expr::Call(CallExpr
                                 {
                                     span: DUMMY_SP,
+                                    ctxt: Default::default(),
                                     type_args: None,
                                     args: vec![ExprOrSpread {
                                         spread: None,
                                         expr: Box::new(Expr::Arrow(ArrowExpr {
-                                            span: DUMMY_SP,                                           
+                                            span: DUMMY_SP,
+                                            ctxt: Default::default(),
                                             is_async: false,
                                             is_generator: false,
                                             type_params: None,
                                             return_type: None,
-                                            body: Box::new(Ident::new(JsWord::from("res"), DUMMY_SP).into()),
+                                            body: Box::new(Ident::new(Atom::from("res"), DUMMY_SP, Default::default()).into()),
                                             params: vec![Pat::Ident(BindingIdent {
-                                                id: Ident {
-                                                    span: DUMMY_SP,
-                                                    sym: JsWord::from("res"),
-                                                    optional: false
-                                                },
+                                                id: Ident::new(Atom::from("res"), DUMMY_SP, Default::default()),
                                                 type_ann: None
                                             })],
                                         })),
@@ -260,24 +252,25 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                         obj: Box::new(Expr::Call(CallExpr {
                                             type_args: None,
                                             span: DUMMY_SP,
+                                            ctxt: Default::default(),
                                             callee: Callee::Import(Import {
                                                 span: DUMMY_SP,
                                                 phase: ImportPhase::Evaluation,
                                             }),
                                             args: vec![import_node],
                                         })),
-                                        prop: MemberProp::Ident(quote_ident!("then")),
+                                        prop: MemberProp::Ident(IdentName::new(Atom::from("then"), DUMMY_SP)),
                                 })))
                                 }
                             )))
                         }) ]
                     }))
-                }));                 
+                }));
             }
             _ => {
             }
         }
-    
+
     }
 }
 
@@ -289,12 +282,9 @@ pub fn process_transform(mut program: Program, metadata: TransformPluginProgramM
 
     let config: Config = serde_json::from_str::<Option<Config>>(config_str.as_str()).expect("Invalid config")
     .unwrap();
-    
-    let comments = match metadata.comments {
-        Some(comments) => comments.clone(),
-        None => PluginCommentsProxy,
-    };
-    
+
+    let comments = metadata.comments.clone();
+
     program.visit_mut_with(&mut MarkExpression::new(comments, &config));
 
     program
