@@ -9,13 +9,12 @@ use swc_core::common::{
 use swc_core::plugin::{plugin_transform, proxies::TransformPluginProgramMetadata};
 use swc_core::atoms::Atom;
 use swc_core::ecma::visit::VisitMutWith;
-use swc_core::ecma::utils::quote_ident;
 
 use serde::Deserialize;
 use serde_json::Value;
 
 use std::{
-    io::{Read, Write}, path::Path, fs::OpenOptions, env,
+    path::Path,
     sync::{Mutex, Once},
     borrow::BorrowMut
 };
@@ -23,11 +22,18 @@ use std::{
 mod shared;
 pub use crate::shared::structs::MarkExpression;
 
+// 全局计数器：用于为新组件分配递增 ID
 static mut STD_ONCE_COUNTER: Option<Mutex<i64>> = None;
 static INIT: Once = Once::new();
 
+// 全局 JSON 缓存：缓存解析后的 map.json 内容
 static mut JSON_VALUE: Option<Mutex<serde_json::Value>> = None;
 static INIT_VALUE: Once = Once::new();
+
+// 全局字符串 buffer：替代文件 I/O，在内存中暂存新组件映射
+// 格式同 swc-chunk-pos.json: "{index}||{name}@@{index}||{name}@@..."
+static mut CHUNK_POS_BUFFER: Option<Mutex<String>> = None;
+static INIT_BUFFER: Once = Once::new();
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -52,6 +58,15 @@ fn global_map_json<'a>() -> &'a Mutex<serde_json::Value> {
         }
     });
     unsafe { JSON_VALUE.as_ref().unwrap() }
+}
+
+fn global_buffer<'a>() -> &'a Mutex<String> {
+    INIT_BUFFER.call_once(|| {
+        unsafe {
+            *CHUNK_POS_BUFFER.borrow_mut() = Some(Mutex::new(String::new()));
+        }
+    });
+    unsafe { CHUNK_POS_BUFFER.as_ref().unwrap() }
 }
 
 impl<C: Comments> MarkExpression<C> {
@@ -106,7 +121,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                     let record_str = &self.record;
 
                                     // json 文件解析出的结果赋值在 v 对象上
-                                    // 如果缓存首次json解析的能力是否有更好的性能
+                                    // 首次解析后缓存在全局变量中，后续直接使用缓存
                                     let mut v: serde_json::Value = Value::Null;
                                     let global_map_value = global_map_json().lock().unwrap().clone();
 
@@ -125,6 +140,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
 
                                         if let Some(dep) = jsChunkPos.get("dep") {
                                             if let Some(result) = dep.get(chunk_name) {
+                                                // 已存在的组件：直接使用已有 index
                                                 let index = result.as_i64().unwrap().to_string();
 
                                                 let noSplitRef = self.noSplit;
@@ -137,17 +153,7 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
 
 
                                             } else {
-                                                // 组成缓存文件的路径
-                                                let current_dir = env::current_dir().unwrap();
-                                                let map_path = current_dir.join("swc-chunk-pos.json");
-
-                                                let mut file = OpenOptions::new()
-                                                    .read(true)
-                                                    .write(true)
-                                                    .create(true)
-                                                    .append(true)
-                                                    .open(map_path)
-                                                    .expect("Failed to open or create the file");
+                                                // 新组件：分配递增 ID
 
                                                     let global_value = *global_string().lock().unwrap();
 
@@ -158,13 +164,42 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                                                         // 设置新的maxValue
                                                         max_value = global_value + 1;
                                                     }
-                                                    // 设置全局变量
+                                                    // 设置全局计数器
                                                     *global_string().lock().unwrap() = max_value;
 
-                                                    // 组成设置写入「缓存文件」的字符串
-                                                    let file_insert_string = format!("{}||{}@@",max_value.to_string(),chunk_name_copy);
+                                                    // 将新组件映射写入全局 buffer（替代文件 I/O，WASM 安全）
+                                                    let buffer_string = format!("{}||{}@@", max_value, chunk_name_copy);
+                                                    global_buffer().lock().unwrap().push_str(&buffer_string);
 
-                                                    write!(file, "{}", file_insert_string.as_str());
+                                                    // 尝试写入 swc-chunk-pos.json（best-effort，WASM 中可能失败但不 panic）
+                                                    if let Ok(current_dir) = std::env::current_dir() {
+                                                        let map_path = current_dir.join("swc-chunk-pos.json");
+                                                        if let Ok(mut file) = std::fs::OpenOptions::new()
+                                                            .read(true)
+                                                            .write(true)
+                                                            .create(true)
+                                                            .append(true)
+                                                            .open(map_path) {
+                                                            let _ = std::io::Write::write_fmt(&mut file, format_args!("{}", buffer_string.as_str()));
+                                                        }
+                                                    }
+
+                                                    // 关键：将新组件同步写入全局缓存的 dep 中，避免重复分配 ID
+                                                    {
+                                                        let mut cached = global_map_json().lock().unwrap();
+                                                        if let Some(js_chunk_pos) = cached.get_mut("jsChunkPos") {
+                                                            // 更新 dep
+                                                            if let Some(dep_obj) = js_chunk_pos.get_mut("dep") {
+                                                                if let Some(obj) = dep_obj.as_object_mut() {
+                                                                    obj.insert(chunk_name_copy.clone(), Value::Number(serde_json::Number::from(max_value)));
+                                                                }
+                                                            }
+                                                            // 更新 max
+                                                            if let Some(max_obj) = js_chunk_pos.get_mut("max") {
+                                                                *max_obj = Value::Number(serde_json::Number::from(max_value));
+                                                            }
+                                                        }
+                                                    }
 
                                                     // 组成「魔法注释」的字符串
 
@@ -194,12 +229,12 @@ impl<C: Comments> VisitMut for MarkExpression<C> {
                 // import 路径字符串的 AST 节点
                 let import_node = ExprOrSpread {
                     spread: None,
-                    expr: Box::new(Expr::Lit(Lit::Str((Str {
+                    expr: Box::new(Expr::Lit(Lit::Str(Str {
                         // dummy_with_cmt 包含上下文信息的 Dummy Span
                         span: Span::dummy_with_cmt(),
                         value: import_path.into(),
                         raw: None
-                    }))))
+                    })))
                 };
 
                 // import 路径字符串的 AST 节点
